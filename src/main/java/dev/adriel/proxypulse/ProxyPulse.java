@@ -6,10 +6,12 @@ import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.ProxyServer;
+import dev.adriel.proxypulse.animation.AnimationRegistry;
 import dev.adriel.proxypulse.config.ConfigManager;
 import dev.adriel.proxypulse.config.PulseConfig;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import org.slf4j.Logger;
 
 /**
@@ -30,6 +32,7 @@ public final class ProxyPulse {
   private final ProxyServer proxy;
   private final Logger logger;
   private final ConfigManager configManager;
+  private final AnimationRegistry animations = new AnimationRegistry();
 
   private volatile PulseConfig config;
 
@@ -59,9 +62,13 @@ public final class ProxyPulse {
       configManager.saveDefaults();
       final PulseConfig loaded = configManager.loadConfig();
       this.config = loaded;
-      logger.info("Configuration loaded (global tab list: {}).",
+
+      final List<String> problems = animations.load(configManager.loadAnimations());
+      problems.forEach(problem -> logger.warn("Skipped an animation: {}", problem));
+
+      logger.info("Loaded {} animation(s); global tab list is {}.", animations.size(),
           loaded.globalTablist().enabled() ? "enabled" : "disabled");
-      return true;
+      return problems.isEmpty();
     } catch (final IOException | RuntimeException exception) {
       logger.error("Could not load the configuration.", exception);
       if (config == null) {
@@ -85,6 +92,10 @@ public final class ProxyPulse {
 
   public ConfigManager configManager() {
     return configManager;
+  }
+
+  public AnimationRegistry animations() {
+    return animations;
   }
 
   private static PulseConfig defaults() {
