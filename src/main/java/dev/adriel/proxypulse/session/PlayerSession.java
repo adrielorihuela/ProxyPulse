@@ -186,6 +186,13 @@ public final class PlayerSession implements AnimationTicker.Refreshable {
     final int packetId = ProtocolUtils.readVarInt(buffer);
     final ProtocolVersion version = player.getProtocolVersion();
 
+    if (packetIds.isChat(packetId)) {
+      // Chat is off limits by design: a player must never be able to type %animation:logo% into
+      // chat and have the proxy animate it for everyone.
+      buffer.readerIndex(start);
+      return buffer;
+    }
+
     if (packetId == packetIds.headerAndFooter()) {
       final Component header = ComponentHolder.read(buffer, version).getComponent();
       final Component footer = ComponentHolder.read(buffer, version).getComponent();

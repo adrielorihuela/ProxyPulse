@@ -5,6 +5,9 @@ import com.velocitypowered.proxy.protocol.MinecraftPacket;
 import com.velocitypowered.proxy.protocol.ProtocolUtils;
 import com.velocitypowered.proxy.protocol.StateRegistry;
 import com.velocitypowered.proxy.protocol.packet.HeaderAndFooterPacket;
+import com.velocitypowered.proxy.protocol.packet.chat.PlayerChatCompletionPacket;
+import com.velocitypowered.proxy.protocol.packet.chat.SystemChatPacket;
+import com.velocitypowered.proxy.protocol.packet.chat.legacy.LegacyChatPacket;
 import com.velocitypowered.proxy.protocol.packet.title.GenericTitlePacket;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,9 +29,11 @@ import java.util.function.Supplier;
  * @param subtitle id of the subtitle packet, or -1
  * @param actionBar id of the action bar packet, or -1
  * @param titleTimes id of the title timing packet, or -1
+ * @param chatIds ids of every clientbound chat packet this client version has, so that they can be
+ *     recognised and refused
  */
 public record PacketIds(int headerAndFooter, int title, int subtitle, int actionBar,
-                        int titleTimes) {
+                        int titleTimes, java.util.Set<Integer> chatIds) {
 
   private static final Map<ProtocolVersion, PacketIds> CACHE = new ConcurrentHashMap<>();
 
@@ -49,7 +54,8 @@ public record PacketIds(int headerAndFooter, int title, int subtitle, int action
         idOf(registry, () -> GenericTitlePacket.constructTitlePacket(
             GenericTitlePacket.ActionType.SET_ACTION_BAR, version)),
         idOf(registry, () -> GenericTitlePacket.constructTitlePacket(
-            GenericTitlePacket.ActionType.SET_TIMES, version)));
+            GenericTitlePacket.ActionType.SET_TIMES, version)),
+        chatIds(registry));
   }
 
   /** Older clients simply do not have some of these packets; -1 means "never match". */
@@ -60,6 +66,29 @@ public record PacketIds(int headerAndFooter, int title, int subtitle, int action
     } catch (final RuntimeException exception) {
       return -1;
     }
+  }
+
+  /**
+   * Ids of the packets that carry chat.
+   *
+   * <p>Nothing here is ever rewritten. They are looked up for the opposite reason: so that a chat
+   * packet can be recognised and refused outright. A player must not be able to type an animation
+   * into chat and have the proxy render it, and that guarantee should not rest on the incidental
+   * fact that no id happens to collide.
+   */
+  private static java.util.Set<Integer> chatIds(
+      final StateRegistry.PacketRegistry.ProtocolRegistry registry) {
+    return java.util.stream.Stream.of(
+            idOf(registry, SystemChatPacket::new),
+            idOf(registry, LegacyChatPacket::new),
+            idOf(registry, PlayerChatCompletionPacket::new))
+        .filter(id -> id >= 0)
+        .collect(java.util.stream.Collectors.toUnmodifiableSet());
+  }
+
+  /** Whether this id belongs to a chat packet, which ProxyPulse never touches. */
+  public boolean isChat(final int packetId) {
+    return chatIds.contains(packetId);
   }
 
   public boolean matchesAny(final int packetId) {
