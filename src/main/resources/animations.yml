@@ -1,0 +1,41 @@
+# ProxyPulse animations
+#
+# Every animation defined here can be used from any backend server by writing
+# %animation:<name>% in a tab list, scoreboard, boss bar or title. Define it once
+# on the proxy and every server in the network shares it.
+#
+# Format (the same one the TAB plugin uses):
+#
+#   <name>:
+#     change-interval: <milliseconds between frames>
+#     texts:
+#     - "<frame>"
+#     - "<frame>"
+#
+# Frames support MiniMessage (<gradient>, <rainbow>, <#hex>, ...) and legacy
+# & colour codes. Placeholders may be used inside a frame as well.
+
+logo:
+  change-interval: 50
+  texts:
+  - "<gradient:#5481C8:#54C8EB>Birdflop</gradient>"
+  - "<gradient:#5493D1:#54DAF4>Birdflop</gradient>"
+  - "<gradient:#54A5D9:#545EB6>Birdflop</gradient>"
+  - "<gradient:#54B7E2:#5470BF>Birdflop</gradient>"
+  - "<gradient:#54C8EB:#5481C8>Birdflop</gradient>"
+  - "<gradient:#54DAF4:#5493D1>Birdflop</gradient>"
+  - "<gradient:#545EB6:#54A5D9>Birdflop</gradient>"
+  - "<gradient:#5470BF:#54B7E2>Birdflop</gradient>"
+  - "<gradient:#5481C8:#54C8EB>Birdflop</gradient>"
+  - "<gradient:#5493D1:#54DAF4>Birdflop</gradient>"
+  - "<gradient:#54A5D9:#545EB6>Birdflop</gradient>"
+  - "<gradient:#54B7E2:#5470BF>Birdflop</gradient>"
+  - "<gradient:#54C8EB:#5481C8>Birdflop</gradient>"
+  - "<gradient:#54DAF4:#5493D1>Birdflop</gradient>"
+
+loading:
+  change-interval: 250
+  texts:
+  - "&7Loading&8."
+  - "&7Loading&8.."
+  - "&7Loading&8..."

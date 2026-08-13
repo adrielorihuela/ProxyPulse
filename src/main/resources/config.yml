@@ -1,0 +1,50 @@
+# ProxyPulse configuration
+#
+# Animations live in their own file, animations.yml, in this same folder.
+# Anything a backend server sends -- tab list, scoreboard, boss bar, titles --
+# can contain the placeholders listed below and the proxy will fill them in
+# before the packet reaches the player. Chat is never touched.
+
+# How often, in milliseconds, non-animation placeholders (%ping%, %network_online%, ...)
+# are refreshed on text that is already on screen. Animations use their own
+# change-interval instead.
+refresh-interval: 500
+
+# Friendly names for your backend servers, used by %server_alias% and by the
+# global tab list. Servers not listed here fall back to their raw name.
+server-aliases:
+  lobby: "&aLobby"
+  survival: "&eSurvival"
+
+global-tablist:
+  # Off by default. Turn it on to replace the per-server tab list with one list
+  # that shows every player connected to the network.
+  enabled: false
+
+  # Servers listed here keep their own tab list, untouched.
+  disabled-servers:
+    - "minigames"
+
+  # Remove the tab list entries the backend server sends, so they cannot show up
+  # next to the global ones. Leave this on unless you know you want both.
+  suppress-backend-tablist: true
+
+  # How each player is shown in the list. Supports MiniMessage, legacy & codes,
+  # animations and every placeholder.
+  name-format: "%player% <dark_gray>[<gray>%player_server%<dark_gray>]"
+
+  # Players are sorted by these keys in order. Available: server, name, ping.
+  sort-by:
+    - "server"
+    - "name"
+
+  # Header and footer shown above and below the list. One entry per line.
+  header:
+    - "%animation:logo%"
+    - "<gray>Players online: <white>%network_online%"
+  footer:
+    - "<gray>Your ping: <white>%ping%ms"
+
+# Log every packet ProxyPulse rewrites. Very noisy -- only for tracking down a
+# placeholder that is not being replaced.
+debug: false
