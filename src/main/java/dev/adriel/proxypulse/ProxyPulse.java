@@ -33,7 +33,7 @@ import org.slf4j.Logger;
     description = "Proxy-side animated placeholders and a global tab list for the whole network.",
     url = "https://github.com/adrielorihuela/ProxyPulse",
     authors = {"adrielorihuela"})
-public final class ProxyPulse {
+public class ProxyPulse {
 
   private final ProxyServer proxy;
   private final Logger logger;
