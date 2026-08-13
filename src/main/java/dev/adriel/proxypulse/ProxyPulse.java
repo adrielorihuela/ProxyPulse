@@ -9,6 +9,7 @@ import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.ProxyServer;
 import dev.adriel.proxypulse.animation.AnimationRegistry;
 import dev.adriel.proxypulse.animation.AnimationTicker;
+import dev.adriel.proxypulse.command.PulseCommand;
 import dev.adriel.proxypulse.config.ConfigManager;
 import dev.adriel.proxypulse.config.PulseConfig;
 import dev.adriel.proxypulse.placeholder.NetworkPlaceholders;
@@ -64,6 +65,7 @@ public final class ProxyPulse {
     reload();
 
     proxy.getEventManager().register(this, sessions);
+    PulseCommand.register(this);
     ticker.start();
   }
 
