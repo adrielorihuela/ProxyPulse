@@ -47,7 +47,8 @@ public final class AnimationRegistry {
       }
     }
 
-    this.animations = Map.copyOf(parsed);
+    // Insertion order is kept so that listing them back shows the file's own order.
+    this.animations = java.util.Collections.unmodifiableMap(parsed);
     return List.copyOf(problems);
   }
 
