@@ -1,0 +1,17 @@
+.gradle/
+build/
+out/
+*.class
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# Local test environment (proxy + backend used to verify the plugin)
+run/
+testenv/
+
+*.log
