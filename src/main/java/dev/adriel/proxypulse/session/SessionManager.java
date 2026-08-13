@@ -3,6 +3,7 @@ package dev.adriel.proxypulse.session;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.DisconnectEvent;
 import com.velocitypowered.api.event.connection.PostLoginEvent;
+import com.velocitypowered.api.event.player.ServerConnectedEvent;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.proxy.connection.MinecraftConnection;
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer;
@@ -41,6 +42,21 @@ public final class SessionManager {
   @Subscribe
   public void onDisconnect(final DisconnectEvent event) {
     detach(event.getPlayer());
+  }
+
+  /**
+   * Forgets what was being tracked when a player changes server.
+   *
+   * <p>The elements belonged to the server they just left. Keeping them would mean re-sending a
+   * lobby's animated header at a player who is now somewhere else entirely, fighting with whatever
+   * the new server sends.
+   */
+  @Subscribe
+  public void onServerConnected(final ServerConnectedEvent event) {
+    final PlayerSession session = sessions.get(event.getPlayer().getUniqueId());
+    if (session != null) {
+      session.clear();
+    }
   }
 
   public PlayerSession session(final Player player) {
