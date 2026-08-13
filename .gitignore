@@ -15,3 +15,6 @@ run/
 testenv/
 
 *.log
+
+# Proxy logs from local test runs
+logs/
