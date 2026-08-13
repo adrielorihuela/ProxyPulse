@@ -27,7 +27,7 @@ public final class PulseOutboundHandler extends ChannelOutboundHandlerAdapter {
   @Override
   public void write(final ChannelHandlerContext ctx, final Object message,
       final ChannelPromise promise) throws Exception {
-    Object outgoing = message;
+    Object outgoing;
     try {
       outgoing = session.rewrite(message);
     } catch (final Throwable throwable) {
@@ -35,6 +35,13 @@ public final class PulseOutboundHandler extends ChannelOutboundHandlerAdapter {
       // rewrite should cost an animation, never the connection.
       session.reportFailure(throwable);
       outgoing = message;
+    }
+
+    if (outgoing == null) {
+      // Deliberately dropped -- the global tab list is replacing whatever this was.
+      io.netty.util.ReferenceCountUtil.release(message);
+      promise.setSuccess();
+      return;
     }
     super.write(ctx, outgoing, promise);
   }

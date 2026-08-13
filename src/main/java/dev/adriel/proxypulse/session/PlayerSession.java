@@ -6,6 +6,7 @@ import com.velocitypowered.proxy.connection.MinecraftConnection;
 import com.velocitypowered.proxy.protocol.ProtocolUtils;
 import com.velocitypowered.proxy.protocol.packet.BossBarPacket;
 import com.velocitypowered.proxy.protocol.packet.HeaderAndFooterPacket;
+import com.velocitypowered.proxy.protocol.packet.LegacyPlayerListItemPacket;
 import com.velocitypowered.proxy.protocol.packet.RemovePlayerInfoPacket;
 import com.velocitypowered.proxy.protocol.packet.UpsertPlayerInfoPacket;
 import com.velocitypowered.proxy.protocol.packet.chat.ComponentHolder;
@@ -18,6 +19,7 @@ import dev.adriel.proxypulse.net.ScoreboardCodec;
 import dev.adriel.proxypulse.net.ScoreboardIds;
 import dev.adriel.proxypulse.placeholder.PlaceholderEngine;
 import dev.adriel.proxypulse.placeholder.PulseContext;
+import dev.adriel.proxypulse.tablist.GlobalTabView;
 import io.netty.buffer.ByteBuf;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +56,7 @@ public final class PlayerSession implements AnimationTicker.Refreshable {
   private final PacketIds packetIds;
   private final ScoreboardIds scoreboardIds;
   private final Map<String, TrackedElement> tracked = new ConcurrentHashMap<>();
+  private final GlobalTabView globalTab;
 
   private volatile long titleLifetime = DEFAULT_TITLE_LIFETIME;
 
@@ -64,6 +67,7 @@ public final class PlayerSession implements AnimationTicker.Refreshable {
     this.connection = connection;
     this.packetIds = PacketIds.forVersion(player.getProtocolVersion());
     this.scoreboardIds = ScoreboardIds.forVersion(player.getProtocolVersion());
+    this.globalTab = new GlobalTabView(plugin, player);
   }
 
   public Player player() {
@@ -79,8 +83,16 @@ public final class PlayerSession implements AnimationTicker.Refreshable {
     tracked.clear();
   }
 
-  /** Rewrites one outgoing message, or returns it untouched when there is nothing to do. */
+  /**
+   * Rewrites one outgoing message, returns it untouched when there is nothing to do, or returns
+   * null to drop it entirely.
+   */
   public Object rewrite(final Object message) {
+    if (suppressesBackendTabList() && isTabListPacket(message)) {
+      // The global list is the one on screen; letting the backend's rows through as well would put
+      // two competing lists in front of the player.
+      return null;
+    }
     if (message instanceof ByteBuf buffer) {
       return rewriteRaw(buffer);
     }
@@ -179,6 +191,28 @@ public final class PlayerSession implements AnimationTicker.Refreshable {
     entry.setDisplayName(new ComponentHolder(version, name));
     update.addEntry(entry);
     return update;
+  }
+
+  private boolean suppressesBackendTabList() {
+    return plugin.config().globalTablist().suppressBackendTablist() && globalTab.isActive();
+  }
+
+  private boolean isTabListPacket(final Object message) {
+    if (message instanceof UpsertPlayerInfoPacket || message instanceof RemovePlayerInfoPacket
+        || message instanceof LegacyPlayerListItemPacket) {
+      return true;
+    }
+    if (!(message instanceof ByteBuf buffer)) {
+      return false;
+    }
+    final int start = buffer.readerIndex();
+    try {
+      return ProtocolUtils.readVarInt(buffer) == packetIds.headerAndFooter();
+    } catch (final RuntimeException exception) {
+      return false;
+    } finally {
+      buffer.readerIndex(start);
+    }
   }
 
   private Object rewriteRaw(final ByteBuf buffer) {
@@ -329,6 +363,13 @@ public final class PlayerSession implements AnimationTicker.Refreshable {
   public void refresh(final long timestampMillis) {
     if (!connection.getChannel().isActive()) {
       return;
+    }
+    if (globalTab.isActive()) {
+      globalTab.refresh(timestampMillis, this::send);
+    } else if (globalTab.hasEntries()) {
+      // The player has moved somewhere the global list does not apply; take back the rows it added
+      // so the server's own list is the only one left.
+      globalTab.reset(this::send);
     }
     tracked.forEach((key, element) -> {
       if (element.hasExpired(timestampMillis)) {
