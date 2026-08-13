@@ -82,6 +82,7 @@ public final class ProxyPulse {
   public boolean reload() {
     try {
       configManager.saveDefaults();
+      dev.adriel.proxypulse.text.TextParser.clearCache();
       this.config = configManager.loadConfig();
 
       final List<String> problems = animations.load(configManager.loadAnimations());

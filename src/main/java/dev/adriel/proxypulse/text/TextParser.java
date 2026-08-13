@@ -31,12 +31,39 @@ public final class TextParser {
       Map.entry('m', "strikethrough"), Map.entry('n', "underlined"), Map.entry('o', "italic"),
       Map.entry('r', "reset"));
 
+  /**
+   * Parsed text, kept because the same handful of strings are parsed over and over.
+   *
+   * <p>An animation's frames are a small fixed set that gets parsed twenty times a second for every
+   * player watching it, and parsing a gradient is by far the most expensive thing this plugin does
+   * per tick. Components are immutable, so one parse can be shared by everyone.
+   */
+  private static final Map<String, Component> CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+
+  /** Enough for any sane set of animation frames, and a hard stop on unbounded growth. */
+  private static final int CACHE_LIMIT = 4096;
+
   private TextParser() {
   }
 
   /** Parses a line of configured text into a component. */
   public static Component parse(final String text) {
-    return MINI_MESSAGE.deserialize(legacyToMiniMessage(text));
+    final Component cached = CACHE.get(text);
+    if (cached != null) {
+      return cached;
+    }
+    final Component parsed = MINI_MESSAGE.deserialize(legacyToMiniMessage(text));
+    if (CACHE.size() >= CACHE_LIMIT) {
+      // Text this varied is not frame text; caching it would only grow without bound.
+      return parsed;
+    }
+    CACHE.put(text, parsed);
+    return parsed;
+  }
+
+  /** Drops the cache, so edited animations are re-read rather than served from memory. */
+  public static void clearCache() {
+    CACHE.clear();
   }
 
   /** Rewrites legacy colour codes as MiniMessage tags, leaving everything else untouched. */

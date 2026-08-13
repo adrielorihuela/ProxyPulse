@@ -137,7 +137,8 @@ public final class PlayerSession implements AnimationTicker.Refreshable {
     final long now = System.currentTimeMillis();
     final Component rendered = render(name, now);
     tracked.put(KEY_BOSS_BAR + uuid, TrackedElement.of(List.of(name), List.of(rendered),
-        parts -> bossBarNameUpdate(uuid, parts.get(0), version), 0L));
+        parts -> bossBarNameUpdate(uuid, parts.get(0), version), 0L,
+        animationsUsedBy(List.of(name))));
 
     packet.setName(new ComponentHolder(version, rendered));
     debug("rewriting boss bar " + uuid);
@@ -176,7 +177,8 @@ public final class PlayerSession implements AnimationTicker.Refreshable {
 
       final Component rendered = render(name, now);
       tracked.put(KEY_TAB_ENTRY + uuid, TrackedElement.of(List.of(name), List.of(rendered),
-          parts -> displayNameUpdate(uuid, parts.get(0), version), 0L));
+          parts -> displayNameUpdate(uuid, parts.get(0), version), 0L,
+          animationsUsedBy(List.of(name))));
       entry.setDisplayName(new ComponentHolder(version, rendered));
       debug("rewriting the tab list name of " + uuid);
     }
@@ -288,7 +290,8 @@ public final class PlayerSession implements AnimationTicker.Refreshable {
         .map(original -> render(original, now))
         .toList();
     tracked.put(parsed.key(), TrackedElement.of(parsed.components(), rendered,
-        parts -> parsed.rebuild(parts, version), 0L));
+        parts -> parsed.rebuild(parts, version), 0L,
+        animationsUsedBy(parsed.components())));
 
     buffer.release();
     debug("rewriting " + parsed.key());
@@ -307,7 +310,8 @@ public final class PlayerSession implements AnimationTicker.Refreshable {
     final long now = System.currentTimeMillis();
     final List<Component> rendered = List.of(render(header, now), render(footer, now));
     tracked.put(KEY_TABLIST, TrackedElement.of(List.of(header, footer), rendered,
-        parts -> HeaderAndFooterPacket.create(parts.get(0), parts.get(1), version), 0L));
+        parts -> HeaderAndFooterPacket.create(parts.get(0), parts.get(1), version), 0L,
+        animationsUsedBy(List.of(header, footer))));
 
     buffer.release();
     debug("rewriting the tab list header and footer");
@@ -335,7 +339,8 @@ public final class PlayerSession implements AnimationTicker.Refreshable {
     final long now = System.currentTimeMillis();
     final Component rendered = render(text, now);
     tracked.put(key, TrackedElement.of(List.of(text), List.of(rendered),
-        parts -> titlePacket(action, parts.get(0), version), now + lifetime));
+        parts -> titlePacket(action, parts.get(0), version), now + lifetime,
+        animationsUsedBy(List.of(text))));
 
     buffer.release();
     debug("rewriting " + key);
@@ -371,19 +376,26 @@ public final class PlayerSession implements AnimationTicker.Refreshable {
       // so the server's own list is the only one left.
       globalTab.reset(this::send);
     }
+    final long refreshBucket = timestampMillis / plugin.config().refreshInterval();
     tracked.forEach((key, element) -> {
       if (element.hasExpired(timestampMillis)) {
         tracked.remove(key);
         return;
       }
+      final long signature = element.signature(timestampMillis, refreshBucket);
+      if (signature == element.lastSignature()) {
+        // Nothing that feeds this text has moved since it was last rendered.
+        return;
+      }
+
       final List<Component> rendered = element.originals().stream()
           .map(original -> render(original, timestampMillis))
           .toList();
-      // Re-sending identical text every tick would be pure bandwidth: only a real change goes out.
+      tracked.put(key, element.rendered(rendered, signature));
+      // Re-sending identical text would be pure bandwidth: only a real change goes out.
       if (rendered.equals(element.lastSent())) {
         return;
       }
-      tracked.put(key, element.withLastSent(rendered));
       send(element.packetFactory().apply(rendered));
     });
   }
@@ -404,6 +416,24 @@ public final class PlayerSession implements AnimationTicker.Refreshable {
       return;
     }
     context.writeAndFlush(packet);
+  }
+
+  /**
+   * Works out which animations a piece of text uses, once, when it is first seen.
+   *
+   * <p>Knowing this up front is what lets a tick decide whether re-rendering is worth it at all.
+   */
+  private List<dev.adriel.proxypulse.animation.Animation> animationsUsedBy(
+      final List<Component> components) {
+    return components.stream()
+        .map(net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
+            ::serialize)
+        .flatMap(text -> PlaceholderEngine.PATTERN.matcher(text).results())
+        .filter(match -> "animation".equalsIgnoreCase(match.group(1)) && match.group(2) != null)
+        .map(match -> plugin.animations().find(match.group(2)))
+        .flatMap(java.util.Optional::stream)
+        .distinct()
+        .toList();
   }
 
   private Component render(final Component component, final long timestampMillis) {
