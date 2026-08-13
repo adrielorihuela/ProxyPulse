@@ -4,7 +4,10 @@ import com.velocitypowered.api.network.ProtocolVersion;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.proxy.connection.MinecraftConnection;
 import com.velocitypowered.proxy.protocol.ProtocolUtils;
+import com.velocitypowered.proxy.protocol.packet.BossBarPacket;
 import com.velocitypowered.proxy.protocol.packet.HeaderAndFooterPacket;
+import com.velocitypowered.proxy.protocol.packet.RemovePlayerInfoPacket;
+import com.velocitypowered.proxy.protocol.packet.UpsertPlayerInfoPacket;
 import com.velocitypowered.proxy.protocol.packet.chat.ComponentHolder;
 import com.velocitypowered.proxy.protocol.packet.title.GenericTitlePacket;
 import dev.adriel.proxypulse.ProxyPulse;
@@ -33,6 +36,8 @@ public final class PlayerSession implements AnimationTicker.Refreshable {
   private static final String KEY_TITLE = "title";
   private static final String KEY_SUBTITLE = "subtitle";
   private static final String KEY_ACTION_BAR = "actionbar";
+  private static final String KEY_BOSS_BAR = "bossbar:";
+  private static final String KEY_TAB_ENTRY = "tabentry:";
 
   /** How long the client keeps an action bar up on its own, in milliseconds. */
   private static final long ACTION_BAR_LIFETIME = 3_000L;
@@ -74,7 +79,101 @@ public final class PlayerSession implements AnimationTicker.Refreshable {
     if (message instanceof ByteBuf buffer) {
       return rewriteRaw(buffer);
     }
+    if (message instanceof BossBarPacket bossBar) {
+      return rewriteBossBar(bossBar);
+    }
+    if (message instanceof UpsertPlayerInfoPacket playerInfo) {
+      return rewritePlayerInfo(playerInfo);
+    }
+    if (message instanceof RemovePlayerInfoPacket removal) {
+      removal.getProfilesToRemove().forEach(uuid -> tracked.remove(KEY_TAB_ENTRY + uuid));
+    }
     return message;
+  }
+
+  /**
+   * Boss bars are addressed by uuid, so an animated one is refreshed with an update-name packet
+   * rather than by adding the bar again -- re-adding it would make the bar flash on the client.
+   */
+  private Object rewriteBossBar(final BossBarPacket packet) {
+    final java.util.UUID uuid = packet.getUuid();
+    if (packet.getAction() == BossBarPacket.REMOVE) {
+      tracked.remove(KEY_BOSS_BAR + uuid);
+      return packet;
+    }
+    if (packet.getAction() != BossBarPacket.ADD
+        && packet.getAction() != BossBarPacket.UPDATE_NAME) {
+      return packet;
+    }
+
+    final ComponentHolder holder = packet.getName();
+    if (holder == null) {
+      return packet;
+    }
+    final ProtocolVersion version = player.getProtocolVersion();
+    final Component name = holder.getComponent();
+    if (!PlaceholderEngine.mayContainPlaceholders(name)) {
+      tracked.remove(KEY_BOSS_BAR + uuid);
+      return packet;
+    }
+
+    final long now = System.currentTimeMillis();
+    final Component rendered = render(name, now);
+    tracked.put(KEY_BOSS_BAR + uuid, TrackedElement.of(List.of(name), List.of(rendered),
+        parts -> bossBarNameUpdate(uuid, parts.get(0), version), 0L));
+
+    packet.setName(new ComponentHolder(version, rendered));
+    debug("rewriting boss bar " + uuid);
+    return packet;
+  }
+
+  private static Object bossBarNameUpdate(final java.util.UUID uuid, final Component name,
+      final ProtocolVersion version) {
+    final BossBarPacket update = new BossBarPacket();
+    update.setUuid(uuid);
+    update.setAction(BossBarPacket.UPDATE_NAME);
+    update.setName(new ComponentHolder(version, name));
+    return update;
+  }
+
+  /** Rewrites the display names a backend puts on tab list rows. */
+  private Object rewritePlayerInfo(final UpsertPlayerInfoPacket packet) {
+    if (!packet.containsAction(UpsertPlayerInfoPacket.Action.UPDATE_DISPLAY_NAME)) {
+      return packet;
+    }
+    final ProtocolVersion version = player.getProtocolVersion();
+    final long now = System.currentTimeMillis();
+
+    for (final UpsertPlayerInfoPacket.Entry entry : packet.getEntries()) {
+      final ComponentHolder holder = entry.getDisplayName();
+      final java.util.UUID uuid = entry.getProfileId();
+      if (holder == null) {
+        tracked.remove(KEY_TAB_ENTRY + uuid);
+        continue;
+      }
+      final Component name = holder.getComponent();
+      if (!PlaceholderEngine.mayContainPlaceholders(name)) {
+        tracked.remove(KEY_TAB_ENTRY + uuid);
+        continue;
+      }
+
+      final Component rendered = render(name, now);
+      tracked.put(KEY_TAB_ENTRY + uuid, TrackedElement.of(List.of(name), List.of(rendered),
+          parts -> displayNameUpdate(uuid, parts.get(0), version), 0L));
+      entry.setDisplayName(new ComponentHolder(version, rendered));
+      debug("rewriting the tab list name of " + uuid);
+    }
+    return packet;
+  }
+
+  private static Object displayNameUpdate(final java.util.UUID uuid, final Component name,
+      final ProtocolVersion version) {
+    final UpsertPlayerInfoPacket update =
+        new UpsertPlayerInfoPacket(UpsertPlayerInfoPacket.Action.UPDATE_DISPLAY_NAME);
+    final UpsertPlayerInfoPacket.Entry entry = new UpsertPlayerInfoPacket.Entry(uuid);
+    entry.setDisplayName(new ComponentHolder(version, name));
+    update.addEntry(entry);
+    return update;
   }
 
   private Object rewriteRaw(final ByteBuf buffer) {
