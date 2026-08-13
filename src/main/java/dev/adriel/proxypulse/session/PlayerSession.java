@@ -13,6 +13,7 @@ import com.velocitypowered.proxy.protocol.packet.title.GenericTitlePacket;
 import dev.adriel.proxypulse.ProxyPulse;
 import dev.adriel.proxypulse.animation.AnimationTicker;
 import dev.adriel.proxypulse.net.PacketIds;
+import dev.adriel.proxypulse.net.PulseOutboundHandler;
 import dev.adriel.proxypulse.placeholder.PlaceholderEngine;
 import dev.adriel.proxypulse.placeholder.PulseContext;
 import io.netty.buffer.ByteBuf;
@@ -293,8 +294,26 @@ public final class PlayerSession implements AnimationTicker.Refreshable {
         return;
       }
       tracked.put(key, element.withLastSent(rendered));
-      connection.write(element.packetFactory().apply(rendered));
+      send(element.packetFactory().apply(rendered));
     });
+  }
+
+  /**
+   * Sends a refreshed packet from below this session's own handler.
+   *
+   * <p>Writing it the ordinary way would send it back through the handler that produced it, where
+   * the text -- already rendered, no placeholders left in it -- would look like a plain packet from
+   * the backend and the element would immediately stop being tracked. Starting the write at this
+   * handler's own position skips it and leaves the tracking alone.
+   */
+  private void send(final Object packet) {
+    final io.netty.channel.ChannelHandlerContext context =
+        connection.getChannel().pipeline().context(PulseOutboundHandler.NAME);
+    if (context == null) {
+      connection.write(packet);
+      return;
+    }
+    context.writeAndFlush(packet);
   }
 
   private Component render(final Component component, final long timestampMillis) {
