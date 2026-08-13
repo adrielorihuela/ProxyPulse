@@ -14,6 +14,8 @@ import dev.adriel.proxypulse.ProxyPulse;
 import dev.adriel.proxypulse.animation.AnimationTicker;
 import dev.adriel.proxypulse.net.PacketIds;
 import dev.adriel.proxypulse.net.PulseOutboundHandler;
+import dev.adriel.proxypulse.net.ScoreboardCodec;
+import dev.adriel.proxypulse.net.ScoreboardIds;
 import dev.adriel.proxypulse.placeholder.PlaceholderEngine;
 import dev.adriel.proxypulse.placeholder.PulseContext;
 import io.netty.buffer.ByteBuf;
@@ -50,6 +52,7 @@ public final class PlayerSession implements AnimationTicker.Refreshable {
   private final Player player;
   private final MinecraftConnection connection;
   private final PacketIds packetIds;
+  private final ScoreboardIds scoreboardIds;
   private final Map<String, TrackedElement> tracked = new ConcurrentHashMap<>();
 
   private volatile long titleLifetime = DEFAULT_TITLE_LIFETIME;
@@ -60,6 +63,7 @@ public final class PlayerSession implements AnimationTicker.Refreshable {
     this.player = player;
     this.connection = connection;
     this.packetIds = PacketIds.forVersion(player.getProtocolVersion());
+    this.scoreboardIds = ScoreboardIds.forVersion(player.getProtocolVersion());
   }
 
   public Player player() {
@@ -208,8 +212,46 @@ public final class PlayerSession implements AnimationTicker.Refreshable {
       return buffer;
     }
 
+    if (scoreboardIds.supported()
+        && (packetId == scoreboardIds.setObjective() || packetId == scoreboardIds.setPlayerTeam())) {
+      buffer.readerIndex(start);
+      return rewriteScoreboard(buffer, packetId, version);
+    }
+
     buffer.readerIndex(start);
     return buffer;
+  }
+
+  /**
+   * Rewrites an objective title, or a team's display name, prefix and suffix.
+   *
+   * <p>Sidebar lines are team prefixes and suffixes in practice, which is why teams are worth the
+   * trouble of a codec of their own.
+   */
+  private Object rewriteScoreboard(final ByteBuf buffer, final int packetId,
+      final ProtocolVersion version) {
+    final ScoreboardCodec.Parsed parsed = packetId == scoreboardIds.setObjective()
+        ? ScoreboardCodec.parseObjective(buffer, version)
+        : ScoreboardCodec.parseTeam(buffer, version);
+
+    if (parsed == null) {
+      return buffer;
+    }
+    if (parsed.components().stream().noneMatch(PlaceholderEngine::mayContainPlaceholders)) {
+      tracked.remove(parsed.key());
+      return buffer;
+    }
+
+    final long now = System.currentTimeMillis();
+    final List<Component> rendered = parsed.components().stream()
+        .map(original -> render(original, now))
+        .toList();
+    tracked.put(parsed.key(), TrackedElement.of(parsed.components(), rendered,
+        parts -> parsed.rebuild(parts, version), 0L));
+
+    buffer.release();
+    debug("rewriting " + parsed.key());
+    return parsed.rebuild(rendered, version);
   }
 
   private Object rewriteHeaderAndFooter(final ByteBuf buffer, final Component header,
