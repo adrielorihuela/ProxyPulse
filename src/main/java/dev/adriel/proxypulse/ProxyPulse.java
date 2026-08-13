@@ -12,9 +12,8 @@ import org.slf4j.Logger;
 /**
  * Entry point of ProxyPulse.
  *
- * <p>At this stage the plugin only probes whether the bundled PacketEvents build is able to attach
- * itself to a Velocity 4 proxy. Everything else is built on top of that answer, so it is verified
- * first and in isolation.
+ * <p>Packet rewriting is done natively against the proxy's own packet classes, so components stay
+ * in the Adventure version the proxy itself ships and no protocol knowledge is duplicated here.
  */
 @Plugin(
     id = "proxypulse",
@@ -41,6 +40,5 @@ public final class ProxyPulse {
   public void onProxyInitialize(final ProxyInitializeEvent event) {
     logger.info("ProxyPulse starting on {} {} (data directory: {})",
         proxy.getVersion().getName(), proxy.getVersion().getVersion(), dataDirectory);
-    new PacketEventsProbe(proxy, logger, dataDirectory).run();
   }
 }
