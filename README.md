@@ -2,6 +2,11 @@
 
 **Define an animation once on the proxy. Use it from every server on the network.**
 
+> [!WARNING]
+> Version 1.0.0 is not ready for production. It has never been tested with a player connected, and
+> scoreboard rewriting has [known bugs](https://github.com/adrielorihuela/ProxyPulse/issues?q=is%3Aissue+is%3Aopen+label%3AP0). Do not run it on a
+> live network until v1.0.1. See [docs/HANDOFF.md](docs/HANDOFF.md) for the current state.
+
 ProxyPulse is a [Velocity](https://papermc.io/software/velocity) plugin that intercepts the text
 your backend servers send to players and fills in placeholders before it reaches them. A backend
 writes `%animation:logo%` in its tab list, scoreboard, boss bar or title, and the proxy replaces it
@@ -29,8 +34,9 @@ backends.
 
 - **Animations from one file.** The same `animations.yml` format the TAB plugin uses, read by the
   proxy and available to every backend through `%animation:name%`.
-- **Everywhere text appears.** Tab list header, footer and player names, scoreboard titles, team
-  prefixes and suffixes, boss bars, titles, subtitles and the action bar.
+- **Where text appears.** Tab list header, footer and player names, scoreboard titles, team
+  prefixes and suffixes, boss bars, titles, subtitles and the action bar. Other places, such as
+  entity names or inventory titles, are not covered.
 - **Never in chat.** Chat packets are explicitly refused, so a player cannot type an animation into
   chat and have the proxy render it for everyone. There are tests that fail if that ever changes.
 - **Network placeholders.** Player counts across the network or on a named server, the player's real
@@ -42,10 +48,10 @@ backends.
 
 | | |
 |---|---|
-| Proxy | Velocity **4.x** (tested on 4.0.0 and forks of it) |
+| Proxy | Velocity **4.x**. Only loading and console commands were checked, on 4.0.0; forks are untested |
 | Java | **25+** |
 | Backends | Any server software. ProxyPulse needs nothing installed on them. |
-| Clients | 1.8+ for animations. The global tab list needs 1.19.3+, and sorts rows on 1.21.2+. Scoreboard rewriting covers 1.20.2+. |
+| Clients | Not tested with any client yet; [support is being defined](https://github.com/adrielorihuela/ProxyPulse/issues/18). By design, tab names and the global tab list need 1.19.3+, the global tab list sorts rows on 1.21.2+, and scoreboard rewriting needs 1.20.2+. Titles before 1.17 are [likely broken](https://github.com/adrielorihuela/ProxyPulse/issues/5). |
 
 ## Install
 
@@ -97,7 +103,7 @@ knows.
 | `%server_count%` | How many backends are registered |
 | `%server_online%` | Players on the player's own server |
 | `%server_online:<name>%` | Players on a named server |
-| `%server_status:<name>%` | `online` or `unknown` |
+| `%server_status:<name>%` | `online` if the server is registered, even when it is down ([#12](https://github.com/adrielorihuela/ProxyPulse/issues/12)); otherwise `unknown` |
 | `%server%` | The player's current server |
 | `%server_alias%` | That server's friendly name from `config.yml` |
 | `%player_server%` | The server of the player a tab row is about |
@@ -174,7 +180,8 @@ versions renumbering packets costs nothing to follow. The scoreboard is the exce
 has no reason to decode one — and its two ids are the only hand-maintained mapping in the project.
 Unknown or newer protocol versions are left alone instead of rewritten with ids that may have moved.
 
-**The scoreboard codec does not try to understand the packet.** It parses only the fields in front
+**The scoreboard codec does not try to understand the whole packet.** It currently has
+[known bugs](https://github.com/adrielorihuela/ProxyPulse/issues/1) in how it refreshes teams and objectives. It parses only the fields in front
 of each piece of text and copies everything after the last one through byte for byte. Where a field
 changed shape between versions and sits *between* two pieces of text, both layouts are attempted and
 the one whose leftover bytes parse as a well-formed member list — ending exactly at the end of the

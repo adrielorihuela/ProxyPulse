@@ -28,6 +28,10 @@ Verification commands for this repo:
 
 For a narrower check while iterating: `./gradlew test --tests '*ClassName*'`.
 
+## Estado actual
+
+v1.0.0 is published but not production ready: no player has ever connected to it. When the user says "dónde nos quedamos", "sigue" or "arregla los issues", read [docs/HANDOFF.md](docs/HANDOFF.md), run `gh issue list`, and follow pinned issue #23. Reply in Spanish.
+
 ## Commands
 
 ```bash
@@ -59,6 +63,7 @@ JDK 25 toolchain is required.
 
 ## Where things live
 
+- [docs/HANDOFF.md](docs/HANDOFF.md): current state, decisions and next steps
 - [docs/architecture.md](docs/architecture.md): packet path, ids and rendering
 - [.claude/skills/test-on-proxy/SKILL.md](.claude/skills/test-on-proxy/SKILL.md): running against the local proxy
 - [.claude/rules/tests.md](.claude/rules/tests.md): test conventions, loaded for `src/test/**`

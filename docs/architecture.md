@@ -1,5 +1,10 @@
 # ProxyPulse architecture
 
+> Known bugs in this design are tracked in [issues](https://github.com/adrielorihuela/ProxyPulse/issues). The most serious: refreshes resend the
+> original scoreboard create packet ([#1](https://github.com/adrielorihuela/ProxyPulse/issues/1)), team updates are not parsed ([#2](https://github.com/adrielorihuela/ProxyPulse/issues/2)),
+> removals are not untracked ([#3](https://github.com/adrielorihuela/ProxyPulse/issues/3)), and a failed `rewriteRaw` leaves the reader index moved
+> ([#5](https://github.com/adrielorihuela/ProxyPulse/issues/5)).
+
 Moved from CLAUDE.md § Architecture on 2026-11-07.
 
 ## Architecture
